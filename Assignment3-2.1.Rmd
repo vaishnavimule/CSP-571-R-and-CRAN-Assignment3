@@ -1,0 +1,133 @@
+
+```{r}
+install.packages("doMC", repos="http://R-Forge.R-project.org")
+```
+
+loading data :
+
+
+```{r}
+mtcars_df = data.frame(mtcars)
+head(mtcars_df)
+```
+
+
+split data to train set and test set :
+
+
+```{r}
+library(caret)
+mtcars_df_split = createDataPartition(mtcars_df$mpg, p = 0.80, list=FALSE)
+mtcars_train_set = mtcars_df[mtcars_df_split,]
+mtcars_test_set = mtcars_df[-mtcars_df_split,]
+```
+
+
+fitting model : 
+
+
+```{r}
+linear_model_mtcars = lm(mpg ~ cyl + disp + hp + drat + wt + qsec + vs + am + gear + carb, data = mtcars_train_set)
+
+summary(linear_model_mtcars)
+```
+
+Based on the t-stat, wt seems relevant. Furthermore other features like qsec, hp, disp also have big t-stat value.
+
+-> wt = -4.74715
+-> qsec = 2.14918
+-> hp = -0.01274
+-> disp = 0.02338
+
+
+```{r}
+coef(linear_model_mtcars)
+```
+
+
+performing ridge regression : 
+
+
+```{r}
+library(glmnet)
+```
+
+
+```{r}
+library(doMC)
+y = mtcars_train_set$mpg
+x = data.matrix(mtcars_train_set[,c('cyl','disp','hp','drat','wt','qsec','vs','am','gear','carb')])
+glm = glmnet(x,y, alpha= 0)
+summary(glm)
+```
+
+
+```{r}
+plot(glm)
+```
+
+
+```{r}
+registerDoMC(core=2)
+grid_lambda  = 10^seq(10,-2,length=100)
+mtcars_cross_val_glm = cv.glmnet(x,y, alpha= 0, lambda = grid_lambda, parallel = TRUE, grouped=FALSE)
+summary(mtcars_cross_val_glm)
+```
+
+
+```{r}
+best_lambda_val = mtcars_cross_val_glm$lambda.min
+best_lambda_val
+```
+
+
+```{r}
+plot(mtcars_cross_val_glm) 
+```
+
+
+```{r}
+mtcars_new_model = glmnet(x, y, alpha=0, lambda=best_lambda_val)
+summary(mtcars_new_model)
+```
+
+
+```{r}
+y_test = mtcars_test_set$mpg
+x_test = data.matrix(mtcars_test_set[,c('cyl','disp','hp','drat','wt','qsec','vs','am','gear','carb')])
+y_mtcars_predictions = predict(mtcars_new_model, s=best_lambda_val, newx=x_test)
+```
+
+
+results Sample Test :
+
+
+```{r}
+SST_mtcars = sum((y_test -mean(y_test))^2)
+cat("SST : ",SST_mtcars)
+SSE_mtcars = sum((y_mtcars_predictions -mean(y_test))^2)
+cat("\nSSE : ", SSE_mtcars)
+mtcars_R_sq = 1 - (SSE_mtcars/SST_mtcars)
+cat("\nR -square : ",mtcars_R_sq)
+```
+
+
+Difference in coeffcient values of models can be seen below :
+
+
+```{r}
+coef(mtcars_new_model)
+```
+
+
+```{r}
+coef(linear_model_mtcars)
+```
+
+
+It can be seen from new coefficent values that Ridge Regression did not do variable section (coff = 0). It performed 'Shrinkage'.
+
+
+```{r}
+plot(glm, xvar="lambda", label=TRUE)
+```

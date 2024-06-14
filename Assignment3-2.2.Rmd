@@ -1,0 +1,106 @@
+
+
+Load Dataset :
+
+
+```{r}
+swiss_df = data.frame(swiss)
+head(swiss)
+```
+
+
+
+```{r}
+library(caret)
+swiss_df_split = createDataPartition(swiss_df$Fertility, p = 0.80, list=FALSE)
+swiss_df_train_set = swiss_df[swiss_df_split,]
+swiss_df_test_set =  swiss_df[-swiss_df_split,]
+```
+
+
+Fit a linear model :
+
+
+```{r}
+swiss_linearmodel = lm(Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality, data = swiss_df_train_set)
+summary(swiss_linearmodel)
+```
+
+
+Based on t-values and p-values, probable relevant features are Infant. Mortality and education
+
+coefficient (education) = -0.83356522
+coefficient (Infant.Mortality) = 1.20966304
+
+
+```{r}
+coef(swiss_linearmodel)
+```
+
+Perform Lasso Regression
+
+
+```{r}
+library(glmnet)
+library(doMC)
+swiss_x_train = data.matrix(swiss_df_train_set[,c("Agriculture", "Examination", "Education", "Infant.Mortality")])
+swiss_y_train = swiss_df_train_set$Fertility
+swiss_lassomodel = glmnet(swiss_x_train, swiss_y_train, alpha=1)
+summary(swiss_lassomodel)
+```
+
+```{r}
+plot(swiss_lassomodel)
+```
+
+```{r}
+registerDoMC(cores=2)
+lambda_vec = 10^seq(10,-3,length=100)
+swiss_crossval_model = cv.glmnet(swiss_x_train, swiss_y_train, alpha=1, lambda=lambda_vec, parallel=TRUE, grouped=FALSE)
+summary(swiss_crossval_model)
+```
+
+```{r}
+swiss_bestlambda_val = swiss_crossval_model$lambda.min
+swiss_bestlambda_val
+```
+
+```{r}
+plot(swiss_crossval_model)
+```
+
+```{r}
+swiss_new_model = glmnet(swiss_x_train, swiss_y_train, alpha=1, lambda=swiss_bestlambda_val)
+summary(swiss_new_model)
+```
+
+```{r}
+coef(swiss_new_model)
+```
+
+```{r}
+coef(swiss_linearmodel)
+```
+
+```{r}
+swiss_x_test = data.matrix(swiss_df_test_set[,c("Agriculture", "Examination", "Education", "Infant.Mortality")])
+swiss_y_test = swiss_df_test_set$Fertility
+swiss_y_predictions = predict(swiss_new_model, newx=swiss_x_test, lambda=swiss_bestlambda_val)
+```
+
+
+```{r}
+SST_swiss = sum((swiss_y_test -mean(swiss_y_test))^2)
+cat("SST : ",SST_swiss)
+SSE_swiss = sum((swiss_y_predictions -mean(swiss_y_test))^2)
+cat("\nSSE : ", SSE_swiss)
+swiss_R_sq = 1 - (SSE_swiss/SST_swiss)
+cat("\nR -square : ",swiss_R_sq)
+```
+
+
+```{r}
+plot(swiss_lassomodel, xvar="lambda", label=TRUE)
+```
+
+Model selection not performed by Lasso as none of the coefficients are = 0

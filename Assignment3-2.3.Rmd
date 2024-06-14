@@ -1,0 +1,37 @@
+
+Load the Dataset :
+
+
+```{r}
+library(readxl)
+concrete_df = read_excel('Concrete_Data.xls')
+names(concrete_df) = c('cement','blastfurnaceslag','fly_ash','water','superplasticizer','coarse_aggregate', 'fine_aggregate', 'age', 'concretecompressstrength')
+head(concrete_df)
+```
+
+Create GAM model :
+
+
+```{r}
+library(mgcv)
+library(nlme)
+concrete_gam_model = gam(concretecompressstrength ~ cement + blastfurnaceslag + fly_ash + water + superplasticizer + coarse_aggregate + fine_aggregate + age, data= concrete_df)
+summary(concrete_gam_model)
+```
+
+
+```{r}
+concrete_gam_model = gam(concretecompressstrength ~ s(cement) + s(blastfurnaceslag) + s(fly_ash) + s(water) + s(superplasticizer) + s(coarse_aggregate) + s(fine_aggregate) + s(age), data= concrete_df)
+summary(concrete_gam_model)
+```
+
+
+
+```{r}
+library(visreg)
+visreg(concrete_gam_model, xlab="Concrete Inputs", ylab = "Concrete Compress Strength") 
+```
+
+
+
+Although there are certain data points that are not very close to our confidence interval, it is seen that there are predictors that are linearly associated and some non-linearly linked is also quite well fitted.
